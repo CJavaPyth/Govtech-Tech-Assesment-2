@@ -1,7 +1,7 @@
 from audioop import add
 from flask import Blueprint, request, jsonify
 import json, datetime
-from src.constants.http_status_codes import HTTP_400_BAD_REQUEST, HTTP_201_CREATED
+from src.constants.http_status_codes import HTTP_200_OK, HTTP_400_BAD_REQUEST, HTTP_201_CREATED
 from src.database import FamilyMember, Household, db
 
 household = Blueprint("household", __name__, url_prefix="/api/v1/household")
@@ -64,3 +64,71 @@ def add_member():
             'household_id': household_id
         }
     }), HTTP_201_CREATED
+
+
+@household.route('/get_households_info', methods=['GET'])
+def get_households_info():
+    all_households = Household.query.filter_by()
+    house_ids = []
+    for household in all_households:
+        house_ids.append(household.id)
+
+    all_household_info = []
+    for id in house_ids:
+        house = Household.query.filter_by(id=id).first()
+        all_household_info.append({
+                "house_id": id,
+                "household_type": house.housing_type,
+                "address": house.address
+            })
+            
+        all_family_members = FamilyMember.query.filter_by(household=id)
+        family_members = []
+        for member in all_family_members:
+            family_members.append({
+                "name": member.name,
+                "gender": member.gender,
+                "marital_status": member.marital_status,
+                "spouse": member.spouse_name,
+                "occupation": member.occupation,
+                "annual_income": member.annual_income,
+                "date_of_birth": member.date_of_birth,      
+            })
+        all_household_info.append({"family_members": family_members})
+
+    return jsonify({
+        "households": all_household_info
+    }), HTTP_200_OK
+
+
+    
+@household.route('/search_household', methods=['GET'])
+def search_household():
+    
+    # takes in household_id as parameter
+    household_id = request.json['household_id']
+    house = Household.query.filter_by(id=household_id).first()
+    household_type = house.housing_type
+    household_address = house.address
+
+    all_members = FamilyMember.query.filter_by(household=household_id)
+    members_info = []
+    for member in all_members:
+        h = Household.query.filter_by(id=household_id).first()
+        print(h.housing_type, h.address)
+        members_info.append({
+             "name": member.name,
+             "gender": member.gender,
+             "marital_status": member.marital_status,
+             "spouse": member.spouse_name,
+             "occupation": member.occupation,
+             "annual_income": member.annual_income,
+             "date_of_birth": member.date_of_birth,
+        })
+
+    return jsonify({
+        'household_id': household_id,
+        'household_type': household_type,
+        'household_address': household_address,
+        'family_members': members_info
+    }), HTTP_200_OK
