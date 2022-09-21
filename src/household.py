@@ -1,4 +1,5 @@
-from audioop import add
+from unittest import result
+from sqlalchemy import desc, func
 from flask import Blueprint, request, jsonify
 import json, datetime
 from src.constants.http_status_codes import HTTP_200_OK, HTTP_400_BAD_REQUEST, HTTP_201_CREATED
@@ -115,7 +116,7 @@ def search_household():
     members_info = []
     for member in all_members:
         h = Household.query.filter_by(id=household_id).first()
-        print(h.housing_type, h.address)
+        #print(h.housing_type, h.address)
         members_info.append({
              "name": member.name,
              "gender": member.gender,
@@ -132,3 +133,193 @@ def search_household():
         'household_address': household_address,
         'family_members': members_info
     }), HTTP_200_OK
+
+
+@household.route('/grant_disbursement_eligibiity', methods=['GET'])
+def get_grants():
+
+    # takes in household and family members of those eligible for SEB, MGS, EB, BSG, YOLO GST Grant
+    max_house_id = db.session.query(func.max(Household.id)).scalar()
+    family_members = []
+    result = []
+    # result.append({"family_members": family_members})
+
+    if request.json['grant_disbursement'] == 'SEB':
+        # Student Encouragement Bonus
+
+        for house_id in range(1, max_house_id+1):
+            students_in_house =  FamilyMember.query.filter_by(occupation='student', household=house_id)
+            for student in students_in_house:
+                #print(student.name)
+                if 2022 - int(student.date_of_birth[len(student.date_of_birth)-4:len(student.date_of_birth)]) < 16:
+                    h = Household.query.filter_by(id=student.household).first() 
+                    result.append({
+                        "house_id": h.id,
+                        "household_type": h.housing_type,
+                        "address": h.address,
+                        'qualifying_members': family_members
+                    })
+                    family_members.append({
+                        "name": student.name,
+                        "gender": student.gender,
+                        "marital_status": student.marital_status,
+                        "spouse": student.spouse_name,
+                        "occupation": student.occupation,
+                        "annual_income": student.annual_income,
+                        "date_of_birth": student.date_of_birth,
+                    })
+        
+        return jsonify({
+            "households_eligible_for_SEB": result
+        }), HTTP_200_OK
+
+    
+    elif request.json['grant_disbursement'] == 'MGS':
+        # Multigeneration Scheme
+
+        for house_id in range(1, max_house_id+1):
+            members_in_house = FamilyMember.query.filter_by(household=house_id)
+            household_combined_income = 0
+            age_criteria = False
+
+            for member in members_in_house:
+                household_combined_income += member.annual_income
+                if (2022 - int(member.date_of_birth[len(member.date_of_birth)-4:len(member.date_of_birth)]) < 18 or (2022 - int(member.date_of_birth[len(member.date_of_birth)-4:len(member.date_of_birth)]) > 55)):
+                    age_criteria = True
+                    #print(member.name)
+            #print("household_combined_income for ", house_id, " is: ", household_combined_income)
+            if age_criteria == True and household_combined_income < 150000:
+                h = Household.query.filter_by(id=member.household).first() 
+                result.append({
+                    "house_id": h.id,
+                    "household_type": h.housing_type,
+                    "address": h.address,
+                    'qualifying_members': family_members
+                })
+                members = FamilyMember.query.filter_by(household=house_id)
+                for member in members:
+                    family_members.append({
+                        "name": member.name,
+                        "gender": member.gender,
+                        "marital_status": member.marital_status,
+                        "spouse": member.spouse_name,
+                        "occupation": member.occupation,
+                        "annual_income": member.annual_income,
+                        "date_of_birth": member.date_of_birth,
+                    })
+
+        return jsonify({
+            "households_eligible_for_MGS": result
+        }), HTTP_200_OK 
+
+
+    elif request.json['grant_disbursement'] == 'EB':
+
+        # Elder Bonus
+        hdb_houses = Household.query.filter_by(housing_type='hdb')
+        for hdb in hdb_houses:
+            hdb_fellows = FamilyMember.query.filter_by(household=hdb.id)
+            age_criteria = False
+            for member in hdb_fellows:
+                if (2022 - int(member.date_of_birth[len(member.date_of_birth)-4:len(member.date_of_birth)])) >= 55: 
+                    age_criteria = True
+                    result.append({
+                        "house_id": hdb.id,
+                        "household_type": hdb.housing_type,
+                        "address": hdb.address,
+                        'qualifying_members': family_members
+                    })
+                    
+                if age_criteria == True:
+                    family_members.append({
+                        "name": member.name,
+                        "gender": member.gender,
+                        "marital_status": member.marital_status,
+                        "spouse": member.spouse_name,
+                        "occupation": member.occupation,
+                        "annual_income": member.annual_income,
+                        "date_of_birth": member.date_of_birth,
+                    })
+
+        return jsonify({
+            "households_eligible_for_EB": result
+        }), HTTP_200_OK 
+
+
+    elif request.json['grant_disbursement'] == 'BSG':
+        # Baby Sunshine Grant
+
+        for house_id in range(1, max_house_id+1):
+            members_in_house = FamilyMember.query.filter_by(household=house_id)
+            baby_count = 0
+            for member in members_in_house:
+
+                # we assume DOB is in DD/MM/YY format
+                # assume today's date is 21 September 2022 in this case, could also use python datetime module for more generic use
+                # i.e. baby must be < 8 months, taking into account the month and date
+
+                year = member.date_of_birth[6:]
+                if year == '2022':
+                    date = int(member.date_of_birth[:2])
+                    month = int(member.date_of_birth[3:5])
+                    if 9-month <= 8 and date < 21:
+                        baby_count += 1
+                        family_members.append({
+                            "name": member.name,
+                            "gender": member.gender,
+                            "marital_status": member.marital_status,
+                            "spouse": member.spouse_name,
+                            "occupation": member.occupation,
+                            "annual_income": member.annual_income,
+                            "date_of_birth": member.date_of_birth,
+                        })
+
+            if baby_count != 0:
+                house = Household.query.filter_by(id=house_id).first()
+                result.append({
+                    "house_id": house.id,
+                    "household_type": house.housing_type,
+                    "address": house.address,
+                    'qualifying_members': family_members
+                })
+
+        return jsonify({
+            "households_eligible_for_BSG": result
+        }), HTTP_200_OK
+
+
+    elif request.json['grant_disbursement'] == 'YOLO_GST':
+
+        # YOlO GST Grant
+        hdb_houses = Household.query.filter_by(housing_type='hdb')
+        
+        for hdb in hdb_houses:
+            age_criteria = False
+            household_combined_income = 0
+            hdb_fellows = FamilyMember.query.filter_by(household=hdb.id)
+            for member in hdb_fellows:
+                household_combined_income += member.annual_income
+            if household_combined_income < 100000:   
+                result.append({
+                    "house_id": hdb.id,
+                    "household_type": hdb.housing_type,
+                    "address": hdb.address,
+                    'qualifying_members': family_members
+                })
+
+                for member in hdb_fellows:
+                    family_members.append({
+                        "name": member.name,
+                        "gender": member.gender,
+                        "marital_status": member.marital_status,
+                        "spouse": member.spouse_name,
+                        "occupation": member.occupation,
+                        "annual_income": member.annual_income,
+                        "date_of_birth": member.date_of_birth,
+                    })  
+    
+
+        return jsonify({
+            "households_eligible_for_YOLO_GST_Grant": result
+        }), HTTP_200_OK 
+
