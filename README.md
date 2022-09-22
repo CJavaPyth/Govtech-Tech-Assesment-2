@@ -6,7 +6,7 @@ Assumptions made for:
     
   - Endpoint 2:
     - MaritalStatus can only be: single, married, divorced, widowed
-    - Spouse can be: nil, or assumed to be an actual person of the opposite gender
+    - Spouse can be: nil, or assumed to be the name of their actual spouse
     - DOB is assumed to be in the format: DD/MM/YY
     
  - Endpoint 4:
