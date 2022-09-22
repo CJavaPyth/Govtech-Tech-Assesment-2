@@ -1,7 +1,7 @@
 from cgi import test
 from flask import Flask
 from src.household import household
-from src.database import Household, db
+from src.models import Household, db
 import os
 
 def create_app(test_config=None):
@@ -17,10 +17,12 @@ def create_app(test_config=None):
 
     db.app=app
     db.init_app(app)
-    # app.register_blueprint(resident)
+
+    # use blueprints to group related functionalities together
     app.register_blueprint(household)
     
 
     return app
 
-# use blueprints to group related functionalities together
+
+
